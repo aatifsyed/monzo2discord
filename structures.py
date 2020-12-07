@@ -34,7 +34,7 @@ class Base:
         try:
             return cls(**{k: d[k] for k in keys})
         except Exception as e:
-            logging.info(
+            logging.error(
                 f"File provided {d.keys()}, expected {cls.__dataclass_fields__.keys()}, intersected at {keys}"
             )
             raise e
@@ -63,8 +63,8 @@ class DiscordConfig(Base):
     def post_message(self, message: str):
         response = requests.post(self.url, json={"content": message})
         if not response.ok:
-            logging.info(f"Us: {response.request.body}")
-            logging.info(
+            logging.error(f"Us: {response.request.body}")
+            logging.error(
                 f"Discord: {response.status_code},{response.reason},\n{response.content}"
             )
             raise Exception("Discord not happy")
@@ -89,7 +89,7 @@ class Transaction:
             )
 
         except Exception as e:
-            logging.info(
+            logging.error(
                 f"Transaction: {request.method} {request.url}\n{request.get_body()}"
             )
             raise e
@@ -122,8 +122,8 @@ class MonzoBalance(Base):
         try:
             return cls.from_dict(response.json())
         except Exception as e:
-            logging.info(f"Us: {response.request.headers}{response.request.body}")
-            logging.info(
+            logging.error(f"Us: {response.request.headers}{response.request.body}")
+            logging.error(
                 f""""Monzo balance:,
             {response.status_code},
             {response.reason},
@@ -133,4 +133,4 @@ class MonzoBalance(Base):
 
     def post_message(self, discord: DiscordConfig):
         discord.post_message(f"""⚖ Account balance:\n    {100}""")
-        logging.info(self.total_balance)
+        logging.error(self.total_balance)

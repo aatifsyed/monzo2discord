@@ -32,8 +32,8 @@ def get_access_token(
         )
         stateout.set(new_state.to_json())
     except Exception as e:
-        logging.info(f"Us: {response.request.headers}{response.request.body}")
-        logging.info(
+        logging.error(f"Us: {response.request.headers}{response.request.body}")
+        logging.error(
             f""""Monzo refresh:,
         {response.status_code},
         {response.reason},
