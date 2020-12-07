@@ -12,3 +12,6 @@ func azure functionapp fetch-app-settings monzo2discord
 ```bash
 func host start
 ```
+```bash
+func azure functionapp publish monzo2discord
+```
