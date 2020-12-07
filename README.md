@@ -3,3 +3,11 @@
 - https://docs.microsoft.com/en-us/azure/azure-functions/functions-bindings-storage-blob-input?tabs=python#example
 - https://docs.microsoft.com/en-us/azure/azure-functions/functions-reference-python
 - https://realpython.com/how-to-make-a-discord-bot-python/
+
+# Commands
+```bash
+func azure functionapp fetch-app-settings monzo2discord
+```
+```bash
+func host start
+```
