@@ -84,7 +84,6 @@ assert response.ok
 
 # %%
 # Enter the flow Monzo side
-
 query = parse.urlencode(
     {
         "client_id": monzo["client_id"],

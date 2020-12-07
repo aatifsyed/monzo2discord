@@ -120,4 +120,5 @@ class MonzoBalance:
             raise e
 
     def post_message(self, discord: DiscordConfig):
-        discord.post_message(f"""⚖ Account balance:\n    {self.total_balance/100}""")
+        discord.post_message(f"""⚖ Account balance:\n    {100}""")
+        logging.info(self.total_balance)
