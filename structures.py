@@ -107,7 +107,7 @@ class Transaction:
         discord.post_message(
             f"""💸 New transaction :
     📅 {str(self.created)}
-    💷 {self.amount/100} ({"📉" if self.amount < 0 else "📈"})
+    💷 £{self.amount/100:.2f} ({"📉" if self.amount < 0 else "📈"})
     📌 {self.counterparty}"""
         )
 
@@ -141,5 +141,6 @@ class MonzoBalance(Base):
             raise e
 
     def post_message(self, discord: DiscordConfig):
-        discord.post_message(f"""⚖ Account balance:\n    {100}""")
-        logging.error(self.total_balance)
+        discord.post_message(
+            f"""⚖ Account balance:\n    £{self.total_balance/100:.2f}"""
+        )

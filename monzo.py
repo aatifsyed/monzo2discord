@@ -134,6 +134,7 @@ def start_auth(config: structures.MonzoConfig):
     )
 
     url = parse.urlunparse(pre_auth_url)
+    print(url)
     pyperclip.copy(url)
     return url
 
@@ -164,6 +165,7 @@ def write_monzostate(state: structures.MonzoState):
 
 
 # %%
+# Ping
 def ping(session: requests.Session):
     response = session.get("https://api.monzo.com/ping/whoami")
     print(response.json())
