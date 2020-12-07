@@ -54,11 +54,12 @@ def main(
 ) -> func.HttpResponse:
     logging.info("Received a request")
 
-    transaction = structures.Transaction.from_request(request)
     monzo = structures.MonzoConfig.from_read(monzofile)
     discord = structures.DiscordConfig.from_read(discordfile)
 
-    transaction.post_message(discord)
+    if request.method == "POST":
+        transaction = structures.Transaction.from_request(request)
+        transaction.post_message(discord)
 
     access_token = get_access_token(monzo, statein, stateout)
     balance = structures.MonzoBalance.from_web(monzo.account_id, access_token)
