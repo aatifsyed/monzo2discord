@@ -3,6 +3,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 
 import azure.functions as func
 import dateutil.parser as dateparse
@@ -75,17 +76,25 @@ class DiscordConfig(Base):
 class Transaction:
     amount: float
     created: datetime
-    merchant_name: str
+    counterparty: Optional[str]
 
     @classmethod
     def from_request(cls, request: func.HttpRequest):
         try:
             d = request.get_json()
 
+            try:
+                counterparty = d["data"]["merchant"]["name"]
+            except:
+                try:
+                    counterparty = d["data"]["counterparty"]["name"]
+                except:
+                    counterparty = None
+
             return cls(
                 amount=d["data"]["amount"],
                 created=dateparse.parse(d["data"]["created"]),
-                merchant_name=d["data"]["merchant"]["name"],
+                counterparty=counterparty,
             )
 
         except Exception as e:
