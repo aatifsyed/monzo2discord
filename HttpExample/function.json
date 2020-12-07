@@ -7,25 +7,41 @@
       "direction": "in",
       "name": "request",
       "methods": [
-        "get",
-        "post"
+        "post",
+        "get"
       ]
     },
     {
-      "name": "discordjson",
+      "name": "discordfile",
       "type": "blob",
       "dataType": "binary",
-      "path": "keys/discord.json",
+      "path": "data/discord.json",
       "connection": "AzureWebJobsStorage",
       "direction": "in"
     },
     {
-      "name": "monzojson",
+      "name": "monzofile",
       "type": "blob",
       "dataType": "binary",
-      "path": "keys/monzo.json",
+      "path": "data/monzo.json",
       "connection": "AzureWebJobsStorage",
       "direction": "in"
+    },
+    {
+      "name": "statein",
+      "type": "blob",
+      "dataType": "binary",
+      "path": "data/state.json",
+      "connection": "AzureWebJobsStorage",
+      "direction": "in"
+    },
+    {
+      "name": "stateout",
+      "type": "blob",
+      "dataType": "binary",
+      "path": "data/state.json",
+      "connection": "AzureWebJobsStorage",
+      "direction": "out"
     },
     {
       "type": "http",
