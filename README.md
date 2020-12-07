@@ -3,6 +3,7 @@
 - https://docs.microsoft.com/en-us/azure/azure-functions/functions-bindings-storage-blob-input?tabs=python#example
 - https://docs.microsoft.com/en-us/azure/azure-functions/functions-reference-python
 - https://realpython.com/how-to-make-a-discord-bot-python/
+- https://docs.monzo.com/#webhooks
 
 # Commands
 ```bash
