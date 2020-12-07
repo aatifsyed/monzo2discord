@@ -1,12 +1,17 @@
 # %%
+import json
 import os
-from types import resolve_bases
+import pyperclip
 import requests
+from collections import namedtuple
+from urllib import parse
 
 # %%
 access_token = os.getenv("MONZO_ACCESS_TOKEN") or input("Enter access token:")
 account_id = os.getenv("MONZO_ACCOUNT_ID") or input("Enter account id:")
 destination_url = "https://monzo2discord.azurewebsites.net/api/HttpExample"
+with open("data/monzo.json") as f:
+    monzo: dict = json.load(f)
 
 # %%
 # List webhooks
@@ -76,4 +81,50 @@ test_post = input("Post to:") or destination_url
 response = requests.post(url=test_post, json=example_body)
 print(response.content)
 assert response.ok
+
+# %%
+# Enter the flow Monzo side
+
+query = parse.urlencode(
+    {
+        "client_id": monzo["client_id"],
+        "redirect_uri": "https://aatifsyed.uk",
+        "response_type": "code",
+        "state": 1234,
+    }
+)
+
+Url = namedtuple("Url", ["scheme", "netloc", "path", "params", "query", "fragment"])
+
+pre_auth_url = Url(
+    scheme="https",
+    netloc="auth.monzo.com",
+    path="",
+    params="",
+    query=query,
+    fragment="",
+)
+
+pyperclip.copy(parse.urlunparse(pre_auth_url))
+
+# %%
+# Exchange the authorization code for an access token
+authorized_url = input("Paste authorized URL:")
+authorization_code = parse.parse_qs(parse.urlparse(authorized_url).query)["code"]
+response = requests.post(
+    url="https://api.monzo.com/oauth2/token",
+    data={
+        "grant_type": "authorization_code",
+        "client_id": monzo["client_id"],
+        "client_secret": monzo["client_secret"],
+        "redirect_uri": "https://aatifsyed.uk",
+        "code": authorization_code,
+    },
+)
+print(response.content)
+assert response.ok
+
+access_token = response.json()["access_token"]
+refresh_token = response.json()["refresh_token"]
+
 # %%
