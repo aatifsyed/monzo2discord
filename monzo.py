@@ -128,3 +128,7 @@ access_token = response.json()["access_token"]
 refresh_token = response.json()["refresh_token"]
 
 # %%
+# Write to file
+with open("data/state.json", "w") as f:
+    json.dump({"access_token": access_token, "refresh_token": refresh_token}, f)
+# %%

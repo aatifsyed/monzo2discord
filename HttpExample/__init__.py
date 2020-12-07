@@ -59,17 +59,17 @@ def refresh_monzo_tokens(
     response = response.json()
     new_state = {
         "access_token": response["access_token"],
-        "refresh_token": response["refresh_tokens"],
+        "refresh_token": response["refresh_token"],
     }
     stateout.set(json.dumps(new_state))
     return response["access_token"]
 
 
 def monzo_get_balance(monzo: dict, access_token):
-    response = requests.post(
+    response = requests.get(
         url="https://api.monzo.com/balance",
         headers={"Authorization": f"Bearer {access_token}"},
-        data={
+        params={
             "account_id": monzo["account_id"],
         },
     )
@@ -92,7 +92,7 @@ def post_monzo_balance_to_discord(
     balance_json = monzo_get_balance(monzo=monzo, access_token=access_token)
 
     message = f"""⚖ Monzo Balance:
-    💷 {balance_json["total_balance"]/100}{balance_json["currency"]}"""
+    💷 {balance_json["total_balance"]/10000}{balance_json["currency"]}"""
     post_message_to_discord(url=url, message=message)
 
 
@@ -109,12 +109,10 @@ def main(
     logging.info(monzo := json.load(monzofile))
     logging.info(discord := json.load(discordfile))
 
-    post_transaction_to_discord(
-        url=discordfile["url"], transaction_json=transaction_json
-    )
+    post_transaction_to_discord(url=discord["url"], transaction_json=transaction_json)
 
     post_monzo_balance_to_discord(
-        url=discordfile["url"], monzo=monzo, statein=statein, stateout=stateout
+        url=discord["url"], monzo=monzo, statein=statein, stateout=stateout
     )
 
     return func.HttpResponse(
