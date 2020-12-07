@@ -12,6 +12,22 @@
       ]
     },
     {
+      "name": "discordjson",
+      "type": "blob",
+      "dataType": "binary",
+      "path": "keys/discord.json",
+      "connection": "AzureWebJobsStorage",
+      "direction": "in"
+    },
+    {
+      "name": "monzojson",
+      "type": "blob",
+      "dataType": "binary",
+      "path": "keys/monzo.json",
+      "connection": "AzureWebJobsStorage",
+      "direction": "in"
+    },
+    {
       "type": "http",
       "direction": "out",
       "name": "$return"

@@ -128,3 +128,7 @@ obj
 appsettings.json
 local.settings.json
 .python_packages
+
+# Keeping a copy of the keys for editing
+# NOT to be used locally
+/keys
