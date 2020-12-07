@@ -108,7 +108,7 @@ class Transaction:
             f"""💸 New transaction :
     📅 {str(self.created)}
     💷 {self.amount/100} ({"📉" if self.amount < 0 else "📈"})
-    📌 {self.merchant_name}"""
+    📌 {self.counterparty}"""
         )
 
 
