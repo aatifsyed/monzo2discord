@@ -14,9 +14,19 @@ class Base:
         yield from self.__dict__.items()
 
     @classmethod
+    def from_json(cls, s: str):
+        d = json.loads(s)
+
+        return cls.from_dict(d)
+
+    @classmethod
     def from_read(cls, file):
         d = json.load(file)
 
+        return cls.from_dict(d)
+
+    @classmethod
+    def from_dict(cls, d: dict):
         # Intersection
         keys = d.keys() & cls.__dataclass_fields__.keys()
 
@@ -29,8 +39,8 @@ class Base:
             )
             raise e
 
-    def to_write(self, file):
-        json.dump(dict(self), file)
+    def to_json(self):
+        return json.dumps(dict(self))
 
 
 @dataclass
@@ -53,6 +63,7 @@ class DiscordConfig(Base):
     def post_message(self, message: str):
         response = requests.post(self.url, json={"content": message})
         if not response.ok:
+            logging.info(f"Us: {response.request.body}")
             logging.info(
                 f"Discord: {response.status_code},{response.reason},\n{response.content}"
             )
@@ -93,7 +104,7 @@ class Transaction:
 
 
 @dataclass
-class MonzoBalance:
+class MonzoBalance(Base):
     balance: int
     total_balance: int
     currency: int
@@ -109,8 +120,9 @@ class MonzoBalance:
             },
         )
         try:
-            return cls(**response.json())
+            return cls.from_dict(response.json())
         except Exception as e:
+            logging.info(f"Us: {response.request.headers}{response.request.body}")
             logging.info(
                 f""""Monzo balance:,
             {response.status_code},

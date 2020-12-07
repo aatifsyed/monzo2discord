@@ -13,6 +13,7 @@ def get_access_token(
     stateout: func.Out[func.InputStream],
 ):
     old_state = structures.MonzoState.from_read(statein)
+    logging.info(f"old state: {old_state}")
 
     response = requests.post(
         url="https://api.monzo.com/oauth2/token",
@@ -29,15 +30,19 @@ def get_access_token(
         new_state = structures.MonzoState(
             access_token=parsed["access_token"], refresh_token=parsed["refresh_token"]
         )
-        new_state.to_write(stateout)
-        return new_state.access_token
-    except:
+        stateout.set(new_state.to_json())
+    except Exception as e:
+        logging.info(f"Us: {response.request.headers}{response.request.body}")
         logging.info(
             f""""Monzo refresh:,
         {response.status_code},
         {response.reason},
         {response.content}"""
         )
+        raise e
+
+    logging.info(f"new state: {new_state}")
+    return new_state.access_token
 
 
 def main(
