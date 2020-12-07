@@ -59,6 +59,9 @@ def main(
 
     if request.method == "POST":
         transaction = structures.Transaction.from_request(request)
+        if transaction.account_id != monzo.account_id:
+            # Aatif's transactions are still coming here. Bail out
+            return func.HttpResponse(status_code=200)
         transaction.post_message(discord)
 
     access_token = get_access_token(monzo, statein, stateout)

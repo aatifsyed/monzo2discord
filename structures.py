@@ -77,6 +77,7 @@ class Transaction:
     amount: float
     created: datetime
     counterparty: Optional[str]
+    account_id: str
 
     @classmethod
     def from_request(cls, request: func.HttpRequest):
@@ -95,6 +96,7 @@ class Transaction:
                 amount=d["data"]["amount"],
                 created=dateparse.parse(d["data"]["created"]),
                 counterparty=counterparty,
+                account_id=d["data"]["account_id"],
             )
 
         except Exception as e:
