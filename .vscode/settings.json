@@ -1,9 +1,3 @@
 {
-    "azureFunctions.deploySubpath": ".",
-    "azureFunctions.scmDoBuildDuringDeployment": true,
-    "azureFunctions.pythonVenv": ".venv",
-    "azureFunctions.projectLanguage": "Python",
-    "azureFunctions.projectRuntime": "~3",
-    "debug.internalConsoleOptions": "neverOpen",
-    "python.pythonPath": ".venv/bin/python"
+    "python.pythonPath": "/home/developer/.cache/pypoetry/virtualenvs/monzo2discord-abgJevwZ-py3.8"
 }
