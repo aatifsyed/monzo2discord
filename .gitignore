@@ -1,5 +1,1 @@
-# Secret sauce
-/*.pem
-
-# Python
-__pycache__
+/target
