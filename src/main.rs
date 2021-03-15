@@ -1,9 +1,9 @@
 #![feature(proc_macro_hygiene, decl_macro)]
-use reqwest;
-use rocket::{get, http::RawStr, routes};
+use monzo2discord::DiscordWebhook;
+use rocket::{get, routes};
 
-#[get("/login?<webhook_id>&<webhook_token>")]
-fn login(webhook_id: u64, webhook_token: &RawStr) -> &'static str {
+#[get("/login")]
+fn login(discord: DiscordWebhook) -> &'static str {
     "Hello, world!"
 }
 
