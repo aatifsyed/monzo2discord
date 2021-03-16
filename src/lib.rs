@@ -1,8 +1,9 @@
 use reqwest;
-use serde::Serialize;
+use std::collections::HashMap;
 use std::convert::Into;
 use thiserror;
 use url;
+use warp::{filters::BoxedFilter, Filter};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Monzo2DiscordError {
@@ -24,8 +25,8 @@ pub enum InvalidWebhookError {
     #[error("Discord wouldn't confirm that this is a webhook")]
     DiscordError(reqwest::Response),
 
-    #[error("Host of URL must be `discord.com`")]
-    DisallowedHost(String),
+    #[error("Host of URL must be `discord.com`, and path must be `/api/webhooks/...`")]
+    DisallowedUrl(String),
 
     #[error("Couldn't parse URL")]
     ParseError(#[from] url::ParseError),
@@ -47,14 +48,15 @@ impl DiscordWebhook {
             Err(e) => return Err(Monzo2DiscordError::InvalidWebhook(e.into())),
         };
         match parsed.host_str() {
-            Some("discord.com") => {
+            Some("discord.com") if parsed.path().starts_with("/api/webhooks") => {
+                // URL looks OK. Check with discord.
                 let response = client.get(&address).send().await?;
                 match response.status() {
                     reqwest::StatusCode::OK => Ok(Self { address }),
                     _ => Err(InvalidWebhookError::DiscordError(response).into()),
                 }
             }
-            _ => Err(InvalidWebhookError::DisallowedHost(address).into()),
+            _ => Err(InvalidWebhookError::DisallowedUrl(address).into()),
         }
     }
     pub async fn post(
@@ -68,6 +70,22 @@ impl DiscordWebhook {
             _ => Err(Monzo2DiscordError::PostFailed(response)),
         }
     }
+}
+
+pub async fn webhook(
+    client: &reqwest::Client,
+) -> impl Filter<Extract = (DiscordWebhook,), Error = warp::Rejection> + Clone {
+    warp::any()
+        .and(warp::query::<HashMap<String, String>>())
+        .map(|hashmap: HashMap<String, String>| async {
+            match hashmap.get("webhook") {
+                Some(url) => match DiscordWebhook::new(client, url.into()).await {
+                    Ok(webhook) => Ok((webhook,)),
+                    Err(_) => Err(warp::reject()),
+                },
+                None => Err(warp::reject()),
+            }
+        })
 }
 
 #[cfg(test)]
@@ -85,7 +103,7 @@ mod tests {
         assert!(matches!(
             DiscordWebhook::new(&client, "https://google.com".into()).await,
             Err(Monzo2DiscordError::InvalidWebhook(
-                InvalidWebhookError::DisallowedHost(_)
+                InvalidWebhookError::DisallowedUrl(_)
             ),),
         ));
         assert!(matches!(
