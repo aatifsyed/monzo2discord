@@ -1,35 +1,48 @@
 use reqwest;
-use std::collections::HashMap;
+use rocket::{self, http::Status, response::Responder, Request, Response};
 use std::convert::Into;
+use std::io::Cursor;
 use thiserror;
 use url;
-use warp::{filters::BoxedFilter, Filter};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Monzo2DiscordError {
-    #[error("Couldn't manage internal state")]
-    StateError,
-
     #[error("The user-provided webhook isn't valid")]
     InvalidWebhook(#[from] InvalidWebhookError),
 
-    #[error("Couldn't make a web request for some low-level reason")]
+    #[error("Couldn't make a web request: {:?}", .0)]
     WebError(#[from] reqwest::Error),
 
-    #[error("An outgoing POST wasn't accepted")]
+    #[error("An outgoing POST wasn't accepted: {}", .0.status())]
     PostFailed(reqwest::Response),
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum InvalidWebhookError {
-    #[error("Discord wouldn't confirm that this is a webhook")]
+    #[error("Discord wouldn't confirm that this is a webhook: {}", .0.status())]
     DiscordError(reqwest::Response),
 
-    #[error("Host of URL must be `discord.com`, and path must be `/api/webhooks/...`")]
+    #[error("Host of URL must be `discord.com`, and path must be `/api/webhooks/...`, not {}", .0)]
     DisallowedUrl(String),
 
-    #[error("Couldn't parse URL")]
+    #[error("Couldn't parse URL: {:?}", .0)]
     ParseError(#[from] url::ParseError),
+}
+
+impl<'r, 'o: 'r> Responder<'r, 'o> for Monzo2DiscordError {
+    fn respond_to(self, _request: &'r Request<'_>) -> Result<Response<'o>, Status> {
+        let status = match self {
+            Monzo2DiscordError::InvalidWebhook(_) => Status::BadRequest,
+            Monzo2DiscordError::WebError(_) => Status::InternalServerError,
+            Monzo2DiscordError::PostFailed(_) => Status::FailedDependency,
+        };
+        let body = format!("{}:\n{:#?}", self, self);
+        let response = Response::build()
+            .status(status)
+            .sized_body(body.len(), Cursor::new(body))
+            .finalize();
+        Ok(response)
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -70,22 +83,6 @@ impl DiscordWebhook {
             _ => Err(Monzo2DiscordError::PostFailed(response)),
         }
     }
-}
-
-pub async fn webhook(
-    client: &reqwest::Client,
-) -> impl Filter<Extract = (DiscordWebhook,), Error = warp::Rejection> + Clone {
-    warp::any()
-        .and(warp::query::<HashMap<String, String>>())
-        .map(|hashmap: HashMap<String, String>| async {
-            match hashmap.get("webhook") {
-                Some(url) => match DiscordWebhook::new(client, url.into()).await {
-                    Ok(webhook) => Ok((webhook,)),
-                    Err(_) => Err(warp::reject()),
-                },
-                None => Err(warp::reject()),
-            }
-        })
 }
 
 #[cfg(test)]
