@@ -1,9 +1,15 @@
+use oauth2::{
+    basic::BasicClient as OauthClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl,
+};
 use reqwest;
 use rocket::{self, http::Status, response::Responder, Request, Response};
 use std::convert::Into;
 use std::io::Cursor;
+use structopt::StructOpt;
 use thiserror;
 use url;
+
+pub use newtypes::CsrfToken;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Monzo2DiscordError {
@@ -83,6 +89,83 @@ impl DiscordWebhook {
             _ => Err(Monzo2DiscordError::PostFailed(response)),
         }
     }
+}
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "foo")]
+pub struct ClientOpt {
+    #[structopt(short = "i", long, env, parse(from_str=parsers::client_id))]
+    client_id: ClientId,
+    #[structopt(short = "s", long, env, parse(from_str=parsers::client_secret), hide_env_values = true)]
+    client_secret: ClientSecret,
+    #[structopt(short, long, env, parse(try_from_str=parsers::auth_url), default_value = "https://auth.monzo.com")]
+    auth_url: AuthUrl,
+    #[structopt(short, long, env, parse(try_from_str=parsers::redirect_url))]
+    redirect_url: RedirectUrl,
+    #[structopt(short, long, env, parse(try_from_str=parsers::token_url), default_value = "https://api.monzo.com/oauth2/token")]
+    token_url: TokenUrl,
+}
+
+impl ClientOpt {
+    pub fn to_oauth_client(self) -> OauthClient {
+        OauthClient::new(
+            self.client_id,
+            Some(self.client_secret),
+            self.auth_url,
+            Some(self.token_url),
+        )
+        .set_redirect_url(self.redirect_url)
+    }
+}
+
+mod parsers {
+    /// For structopt parsing
+    use super::*;
+    pub fn client_id(s: &str) -> ClientId {
+        ClientId::new(s.to_owned())
+    }
+    pub fn client_secret(s: &str) -> ClientSecret {
+        ClientSecret::new(s.to_owned())
+    }
+    pub fn auth_url(s: &str) -> Result<AuthUrl, url::ParseError> {
+        AuthUrl::new(s.to_owned())
+    }
+    pub fn redirect_url(s: &str) -> Result<RedirectUrl, url::ParseError> {
+        RedirectUrl::new(s.to_owned())
+    }
+    pub fn token_url(s: &str) -> Result<TokenUrl, url::ParseError> {
+        TokenUrl::new(s.to_owned())
+    }
+}
+
+mod newtypes {
+    use oauth2;
+    use std::hash::{Hash, Hasher};
+    use std::cmp::{Eq, PartialEq};
+    use serde::{Serialize, Deserialize};
+    use serde_json;
+
+    #[derive(Serialize, Deserialize)]
+    pub struct CsrfToken(oauth2::CsrfToken);
+
+    impl CsrfToken {
+        pub fn new_random() -> Self {
+            return Self(oauth2::CsrfToken::new_random())
+        }
+    }
+
+    impl Hash for CsrfToken {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            serde_json::to_string(self).unwrap().hash(state);
+        }
+    }
+
+    impl PartialEq for CsrfToken {
+        fn eq(&self, other: &Self) -> bool {
+            serde_json::to_string(self).unwrap() == serde_json::to_string(other).unwrap()
+        }
+    }
+    impl Eq for CsrfToken {}
 }
 
 #[cfg(test)]
