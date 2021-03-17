@@ -9,8 +9,6 @@ use structopt::StructOpt;
 use thiserror;
 use url;
 
-pub use newtypes::CsrfToken;
-
 #[derive(thiserror::Error, Debug)]
 pub enum Monzo2DiscordError {
     #[error("The user-provided webhook isn't valid")]
@@ -136,36 +134,6 @@ mod parsers {
     pub fn token_url(s: &str) -> Result<TokenUrl, url::ParseError> {
         TokenUrl::new(s.to_owned())
     }
-}
-
-mod newtypes {
-    use oauth2;
-    use std::hash::{Hash, Hasher};
-    use std::cmp::{Eq, PartialEq};
-    use serde::{Serialize, Deserialize};
-    use serde_json;
-
-    #[derive(Serialize, Deserialize)]
-    pub struct CsrfToken(oauth2::CsrfToken);
-
-    impl CsrfToken {
-        pub fn new_random() -> Self {
-            return Self(oauth2::CsrfToken::new_random())
-        }
-    }
-
-    impl Hash for CsrfToken {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            serde_json::to_string(self).unwrap().hash(state);
-        }
-    }
-
-    impl PartialEq for CsrfToken {
-        fn eq(&self, other: &Self) -> bool {
-            serde_json::to_string(self).unwrap() == serde_json::to_string(other).unwrap()
-        }
-    }
-    impl Eq for CsrfToken {}
 }
 
 #[cfg(test)]
