@@ -4,12 +4,20 @@ use oauth2::{
 };
 use reqwest;
 use rocket::{self, http::Status, response::Responder, Request, Response};
+use std::convert::Into;
 use std::io::Cursor;
-use std::{convert::Into, str::FromStr};
 use structopt::StructOpt;
 use thiserror;
 use url;
 
+/// An `oauth2::Client` can take a...
+/// ```rust,ignore
+/// FnOnce(HttpRequest) -> F
+/// where
+/// F: Future<Output = Result<HttpResponse, RE>>,
+/// RE: std::error::Error + 'static
+/// ```
+/// And we want to use the pre-existing reqwest client, so trait it in.
 #[async_trait]
 pub trait OauthHttpClient {
     async fn oauth_http_client(
@@ -64,6 +72,7 @@ pub enum InvalidWebhookError {
     ParseError(#[from] url::ParseError),
 }
 
+/// Allow different errors to become HTTP responses
 impl<'r, 'o: 'r> Responder<'r, 'o> for Monzo2DiscordError {
     fn respond_to(self, _request: &'r Request<'_>) -> Result<Response<'o>, Status> {
         let status = match self {
@@ -107,6 +116,7 @@ impl DiscordWebhook {
             _ => Err(InvalidWebhookError::DisallowedUrl(address).into()),
         }
     }
+
     pub async fn post(
         &self,
         client: &reqwest::Client,
@@ -147,8 +157,8 @@ impl ClientOpt {
     }
 }
 
+/// For structopt parsing
 mod parsers {
-    /// For structopt parsing
     use super::*;
     pub fn client_id(s: &str) -> ClientId {
         ClientId::new(s.to_owned())
