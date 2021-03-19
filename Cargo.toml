@@ -8,8 +8,9 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.38"
+async-trait = "0.1.48"
 dotenv = "0.15.0"
-oauth2 = { version = "3.0", features = ["futures-03", "reqwest-010"], default-features = false }
+oauth2 = { git = "https://github.com/ramosbugs/oauth2-rs.git", branch = "main", default-features = false }
 reqwest = "0.11.2"
 rocket = { git = "https://github.com/SergioBenitez/Rocket.git" }
 serde = "1.0.124"

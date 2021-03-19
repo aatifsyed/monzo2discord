@@ -1,13 +1,44 @@
+use async_trait::async_trait;
 use oauth2::{
     basic::BasicClient as OauthClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl,
 };
 use reqwest;
 use rocket::{self, http::Status, response::Responder, Request, Response};
-use std::convert::Into;
 use std::io::Cursor;
+use std::{convert::Into, str::FromStr};
 use structopt::StructOpt;
 use thiserror;
 use url;
+
+#[async_trait]
+pub trait OauthHttpClient {
+    async fn oauth_http_client(
+        &self,
+        request: oauth2::HttpRequest,
+    ) -> Result<oauth2::HttpResponse, reqwest::Error>;
+}
+
+#[async_trait]
+impl OauthHttpClient for reqwest::Client {
+    async fn oauth_http_client(
+        &self,
+        request: oauth2::HttpRequest,
+    ) -> Result<oauth2::HttpResponse, reqwest::Error> {
+        let request = self
+            .request(request.method, request.url)
+            .body(request.body)
+            .headers(request.headers)
+            .build()?;
+
+        let response = self.execute(request).await?;
+
+        Ok(oauth2::HttpResponse {
+            status_code: response.status(),
+            headers: response.headers().to_owned(),
+            body: response.bytes().await?.to_vec(),
+        })
+    }
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum Monzo2DiscordError {
@@ -112,7 +143,7 @@ impl ClientOpt {
             self.auth_url,
             Some(self.token_url),
         )
-        .set_redirect_url(self.redirect_url)
+        .set_redirect_uri(self.redirect_url)
     }
 }
 

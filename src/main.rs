@@ -1,9 +1,9 @@
 #[cfg(debug_assertions)]
 use dotenv;
-use monzo2discord::{ClientOpt, DiscordWebhook, Monzo2DiscordError};
-use oauth2::{basic::BasicClient as OauthClient, CsrfToken};
+use monzo2discord::{ClientOpt, DiscordWebhook, Monzo2DiscordError, OauthHttpClient};
+use oauth2::{basic::BasicClient as OauthClient, AuthorizationCode, CsrfToken};
 use reqwest::Client as HTTPClient;
-use rocket::{get, launch, response::Redirect, routes, Response, Rocket, State};
+use rocket::{get, http::Status, launch, response::Redirect, routes, Response, Rocket, State};
 use serde_json;
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -12,7 +12,7 @@ use structopt::StructOpt;
 
 type CsrfMap = Mutex<HashMap<String, DiscordWebhook>>; // TODO this should be a TTL cache
 
-#[get("/login?<webhook>")]
+#[get("/oauth/login?<webhook>")]
 async fn login(
     http_client: State<'_, HTTPClient>,
     oauth_client: State<'_, OauthClient>,
@@ -27,7 +27,34 @@ async fn login(
     let mut secret_map = secret_map.lock().unwrap(); // Turn that reference into an owned value
     secret_map.insert(csrf_token, discord_webhook);
 
-    Ok(Redirect::to(url.into_string()))
+    let url = url.into_string();
+    println!("Redirecting to {:?}", url);
+
+    Ok(Redirect::to(url))
+}
+
+#[get("/oauth/callback?<code>&<state>")]
+async fn oauth_callback(
+    http_client: State<'_, HTTPClient>,
+    oauth_client: State<'_, OauthClient>,
+    secret_map: State<'_, CsrfMap>,
+    code: &str,
+    state: &str,
+) -> Response<'static> {
+    let state = state.to_owned();
+    let mut secret_map = (&*secret_map).lock().unwrap();
+    let foo = secret_map.remove(&state);
+    match foo {
+        None => Response::build().status(Status::Gone).finalize(),
+        Some(discord_webhoook) => {
+            let foo = oauth_client
+                .exchange_code(AuthorizationCode::new(code.to_string()))
+                .request_async(|request| http_client.oauth_http_client(request))
+                .await;
+
+            unimplemented!()
+        }
+    }
 }
 
 #[launch]
@@ -46,4 +73,10 @@ fn rocket() -> Rocket {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+    #[test]
+    fn state_code_survives_journey() {
+        let token = CsrfToken::new_random();
+    }
+}
