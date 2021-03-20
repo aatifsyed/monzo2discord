@@ -42,17 +42,27 @@ async fn oauth_callback(
     state: &str,
 ) -> Response<'static> {
     let state = state.to_owned();
-    let mut secret_map = (&*secret_map).lock().unwrap();
-    let foo = secret_map.remove(&state);
-    match foo {
+    let mut value = None;
+
+    // Drop the lock before we await
+    {
+        let mut secret_map = (&*secret_map).lock().unwrap();
+        value = secret_map.remove(&state);
+    }
+
+    match value {
         None => Response::build().status(Status::Gone).finalize(),
         Some(discord_webhoook) => {
-            let foo = oauth_client
+            match oauth_client
                 .exchange_code(AuthorizationCode::new(code.to_string()))
                 .request_async(|request| http_client.oauth_http_client(request))
-                .await;
-
-            unimplemented!()
+                .await
+            {
+                Err(token_error) => Response::build()
+                    .status(Status::ExpectationFailed)
+                    .finalize(),
+                Ok(token_response) => Response::new(),
+            }
         }
     }
 }
