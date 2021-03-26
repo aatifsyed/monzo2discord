@@ -89,6 +89,46 @@ impl<'r, 'o: 'r> Responder<'r, 'o> for Monzo2DiscordError {
     }
 }
 
+/// Represents communication with discord
+pub struct Discord<'d> {
+    /// Where is discord?
+    pub url: url::Url,
+    /// Client to use for requests to discord
+    pub client: &'d reqwest::Client,
+    /// Allow validation to be mocked in testing
+    pub webhook_validator: Box<dyn Fn(&Self, String) -> Result<DiscordWebhook, Monzo2DiscordError>>,
+}
+
+impl<'d> Discord<'d> {
+    pub fn with_client(client: &'d reqwest::Client) -> Self {
+        Discord {
+            url: url::Url::parse("https://discord.com").unwrap(),
+            client,
+            webhook_validator: Box::new(Self::webhook_validator),
+        }
+    }
+
+    pub fn webhook_validator(&self, webhook: String) -> Result<DiscordWebhook, Monzo2DiscordError> {
+        let webhook = match url::Url::parse(&webhook) {
+            Ok(p) => p,
+            Err(e) => return Err(Monzo2DiscordError::InvalidWebhook(e.into())),
+        };
+        match webhook.host_str() {
+            Some(host)
+                if webhook.path().starts_with("/api/webhooks") && host == self.url.host_str() =>
+            {
+                // URL looks OK. Check with discord.
+                let response = client.get(&address).send().await?;
+                match response.status() {
+                    reqwest::StatusCode::OK => Ok(Self { address }),
+                    _ => Err(InvalidWebhookError::DiscordError(response).into()),
+                }
+            }
+            _ => Err(InvalidWebhookError::DisallowedUrl(address).into()),
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct DiscordWebhook {
     address: String,
