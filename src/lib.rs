@@ -4,6 +4,8 @@ use oauth2::{
 };
 use reqwest;
 use rocket::{self, http::Status, response::Responder, Request, Response};
+use serde::Serialize;
+use serde_json;
 use serenity;
 use std::convert::Into;
 use std::io::Cursor;
@@ -57,8 +59,8 @@ pub enum Monzo2DiscordError {
     #[error("Couldn't make a web request: {:?}", .0)]
     WebError(#[from] reqwest::Error),
 
-    #[error("An outgoing POST wasn't accepted: {}", .0.status())]
-    PostFailed(reqwest::Response),
+    #[error("An outgoing POST wasn't accepted")]
+    WebhookNotExecuted(reqwest::Error),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -79,7 +81,7 @@ impl<'r, 'o: 'r> Responder<'r, 'o> for Monzo2DiscordError {
         let status = match self {
             Monzo2DiscordError::InvalidWebhook(_) => Status::BadRequest,
             Monzo2DiscordError::WebError(_) => Status::InternalServerError,
-            Monzo2DiscordError::PostFailed(_) => Status::FailedDependency,
+            Monzo2DiscordError::WebhookNotExecuted(_) => Status::FailedDependency,
         };
         let body = format!("{}:\n{:#?}", self, self);
         let response = Response::build()
@@ -95,6 +97,28 @@ impl<'r, 'o: 'r> Responder<'r, 'o> for Monzo2DiscordError {
 pub struct Webhook {
     url: url::Url,
     client: reqwest::Client,
+}
+
+impl Webhook {
+    pub async fn execute<B: std::fmt::Display>(&self, body: B) -> Result<(), Monzo2DiscordError> {
+        let body = Message {
+            content: format!("{}", body),
+        };
+        let body = serde_json::to_string(&body).unwrap();
+        self.client
+            .post(self.url.clone())
+            .body(body)
+            .header("Content-Type", "application/json")
+            .send()
+            .await?
+            .error_for_status()
+            .map(|_| ())
+            .map_err(|e| Monzo2DiscordError::WebhookNotExecuted(e))
+    }
+}
+#[derive(Serialize)]
+struct Message {
+    content: String,
 }
 
 /// Represents communication with discord
@@ -190,25 +214,35 @@ mod parsers {
 mod tests {
     use super::*;
     use httpmock::{Method, MockServer};
+    /// We rely on `serenity`'s webhook object parsing to validate our webhooks.
+    /// This is the smallest valid webhook
+    fn valid_webhook_object(id: &str, token: &str) -> String {
+        format!(
+            r#"{{
+            "application_id": null,
+            "avatar": null,
+            "channel_id": "100",
+            "guild_id": null,
+            "id": "{}",
+            "name": null,
+            "token": "{}",
+            "type": 1
+            }}"#,
+            id, token
+        )
+    }
     #[tokio::test]
     async fn valid_webhooks() {
         let discord_server = MockServer::start();
+
+        let (id, token) = ("123", "456");
+        let path = format!("/api/webhooks/{}/{}", id, token);
+
         let webhook_endpoint = discord_server.mock(|when, then| {
-            when.method(Method::GET).path("/api/webhooks/123/456");
+            when.method(Method::GET).path(&path);
             then.status(200)
                 .header("Content-Type", "application/json")
-                .body(
-                    r#"{
-                    "application_id": null,
-                    "avatar": null,
-                    "channel_id": "100",
-                    "guild_id": null,
-                    "id": "123",
-                    "name": null,
-                    "token": "456",
-                    "type": 1
-                    }"#,
-                );
+                .body(valid_webhook_object(id, token));
         });
 
         let discord_client = Discord {
@@ -216,7 +250,7 @@ mod tests {
             ..Default::default()
         };
         discord_client
-            .create_webhook(&discord_server.url("/api/webhooks/123/456"))
+            .create_webhook(&discord_server.url(&path))
             .await
             .unwrap();
         webhook_endpoint.assert();
@@ -231,5 +265,31 @@ mod tests {
             .await
             .unwrap_err();
         bad_webhook.assert();
+    }
+
+    #[tokio::test]
+    async fn post_webhook() {
+        let discord_server = MockServer::start();
+        let path = "/api/webhooks/123/456";
+
+        let message = r#"Hello from "Aatif""#;
+        let message_json = Message {
+            content: message.to_string(),
+        };
+        let message_json = serde_json::to_string(&message_json).unwrap();
+
+        let webhook_endpoint = discord_server.mock(|when, then| {
+            when.method(Method::POST).path(path).body(message_json);
+            then.status(200);
+        });
+
+        let webhook = Webhook {
+            url: url::Url::parse(&discord_server.url(path)).unwrap(),
+            client: Default::default(),
+        };
+
+        webhook.execute(message).await.unwrap();
+
+        webhook_endpoint.assert();
     }
 }
