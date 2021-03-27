@@ -1,10 +1,11 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use oauth2::{
     basic::BasicClient as OauthClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl,
 };
 use reqwest;
 use rocket::{self, http::Status, response::Responder, Request, Response};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json;
 use serenity;
 use std::convert::Into;
@@ -163,6 +164,30 @@ impl Discord {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "type", content = "data")]
+#[non_exhaustive]
+enum MonzoObject {
+    #[serde(rename = "transaction.created")]
+    TransactionCreated {
+        account_id: String,
+        amount: isize,
+        created: DateTime<Utc>,
+        currency: String,
+        description: String,
+        id: String,
+        category: String,
+        is_load: bool,
+        settled: DateTime<Utc>,
+        /// We only want this field for the name really
+        #[serde(alias = "merchant")]
+        counterparty: Named,
+    },
+}
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+struct Named {
+    name: String,
+}
 #[derive(Debug, StructOpt)]
 #[structopt(name = "foo")]
 pub struct ClientOpt {
@@ -231,6 +256,40 @@ mod tests {
             id, token
         )
     }
+    fn transaction_created_object() -> &'static str {
+        r#"{
+            "type": "transaction.created",
+            "data": {
+                "account_id": "acc_00008gju41AHyfLUzBUk8A",
+                "amount": -350,
+                "created": "2015-09-04T14:28:40Z",
+                "currency": "GBP",
+                "description": "Ozone Coffee Roasters",
+                "id": "tx_00008zjky19HyFLAzlUk7t",
+                "category": "eating_out",
+                "is_load": false,
+                "settled": "2015-09-05T14:28:40Z",
+                "merchant": {
+                    "address": {
+                        "address": "98 Southgate Road",
+                        "city": "London",
+                        "country": "GB",
+                        "latitude": 51.54151,
+                        "longitude": -0.08482400000002599,
+                        "postcode": "N1 3JD",
+                        "region": "Greater London"
+                    },
+                    "created": "2015-08-22T12:20:18Z",
+                    "group_id": "grp_00008zIcpbBOaAr7TTP3sv",
+                    "id": "merch_00008zIcpbAKe8shBxXUtl",
+                    "logo": "https://pbs.twimg.com/profile_images/527043602623389696/68_SgUWJ.jpeg",
+                    "emoji": "🍞",
+                    "name": "The De Beauvoir Deli Co.",
+                    "category": "eating_out"
+                }
+            }
+        }"#
+    }
     #[tokio::test]
     async fn valid_webhooks() {
         let discord_server = MockServer::start();
@@ -291,5 +350,23 @@ mod tests {
         webhook.execute(message).await.unwrap();
 
         webhook_endpoint.assert();
+    }
+
+    #[test]
+    fn serde_transaction_created() {
+        let incoming = transaction_created_object();
+
+        let parsed: MonzoObject = serde_json::from_str(incoming).unwrap();
+        match parsed {
+            MonzoObject::TransactionCreated { counterparty, .. }
+                if counterparty
+                    == Named {
+                        name: "The De Beauvoir Deli Co.".to_owned(),
+                    } =>
+            {
+                ()
+            }
+            _ => panic!(),
+        }
     }
 }

@@ -1,6 +1,6 @@
 #[cfg(debug_assertions)]
 use dotenv;
-use monzo2discord::{ClientOpt, Monzo2DiscordError, OauthHttpClient};
+use monzo2discord::{ClientOpt, Discord, Monzo2DiscordError, OauthHttpClient, Webhook};
 use oauth2::{basic::BasicClient as OauthClient, AuthorizationCode, CsrfToken};
 use reqwest::Client as HTTPClient;
 use rocket::{get, http::Status, launch, response::Redirect, routes, Response, Rocket, State};
@@ -10,7 +10,7 @@ use std::io::Cursor;
 use std::sync::Mutex;
 use structopt::StructOpt;
 
-type CsrfMap = Mutex<HashMap<String, DiscordWebhook>>; // TODO this should be a TTL cache
+type CsrfMap = Mutex<HashMap<String, Webhook>>; // TODO this should be a TTL cache
 
 #[get("/oauth/login?<webhook>")]
 async fn login(
