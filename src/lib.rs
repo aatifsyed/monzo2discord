@@ -4,6 +4,7 @@ use oauth2::{
 };
 use reqwest;
 use rocket::{self, http::Status, response::Responder, Request, Response};
+use serenity;
 use std::convert::Into;
 use std::io::Cursor;
 use structopt::StructOpt;
@@ -65,11 +66,11 @@ pub enum InvalidWebhookError {
     #[error("Discord wouldn't confirm that this is a webhook: {}", .0.status())]
     DiscordError(reqwest::Response),
 
-    #[error("Host of URL must be `discord.com`, and path must be `/api/webhooks/...`, not {}", .0)]
-    DisallowedUrl(String),
+    #[error("Host of URL must be {}, not {}", .0, .1)]
+    DisallowedHost(String, String),
 
     #[error("Couldn't parse URL: {:?}", .0)]
-    ParseError(#[from] url::ParseError),
+    UrlParseError(#[from] url::ParseError),
 }
 
 /// Allow different errors to become HTTP responses
@@ -89,84 +90,52 @@ impl<'r, 'o: 'r> Responder<'r, 'o> for Monzo2DiscordError {
     }
 }
 
+/// Represents a webhook
+#[derive(Debug)]
+pub struct Webhook {
+    url: url::Url,
+    client: reqwest::Client,
+}
+
 /// Represents communication with discord
-pub struct Discord<'d> {
+pub struct Discord {
     /// Where is discord?
     pub url: url::Url,
     /// Client to use for requests to discord
-    pub client: &'d reqwest::Client,
-    /// Allow validation to be mocked in testing
-    pub webhook_validator: Box<dyn Fn(&Self, String) -> Result<DiscordWebhook, Monzo2DiscordError>>,
+    pub client: reqwest::Client,
 }
 
-impl<'d> Discord<'d> {
-    pub fn with_client(client: &'d reqwest::Client) -> Self {
-        Discord {
+impl Default for Discord {
+    fn default() -> Self {
+        Self {
             url: url::Url::parse("https://discord.com").unwrap(),
-            client,
-            webhook_validator: Box::new(Self::webhook_validator),
-        }
-    }
-
-    pub fn webhook_validator(&self, webhook: String) -> Result<DiscordWebhook, Monzo2DiscordError> {
-        let webhook = match url::Url::parse(&webhook) {
-            Ok(p) => p,
-            Err(e) => return Err(Monzo2DiscordError::InvalidWebhook(e.into())),
-        };
-        match webhook.host_str() {
-            Some(host)
-                if webhook.path().starts_with("/api/webhooks") && host == self.url.host_str() =>
-            {
-                // URL looks OK. Check with discord.
-                let response = client.get(&address).send().await?;
-                match response.status() {
-                    reqwest::StatusCode::OK => Ok(Self { address }),
-                    _ => Err(InvalidWebhookError::DiscordError(response).into()),
-                }
-            }
-            _ => Err(InvalidWebhookError::DisallowedUrl(address).into()),
+            client: Default::default(),
         }
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub struct DiscordWebhook {
-    address: String,
-}
-
-impl DiscordWebhook {
-    /// Validates a webhook, and returns one if validation passed.
-    pub async fn new(
-        client: &reqwest::Client,
-        address: String,
-    ) -> Result<Self, Monzo2DiscordError> {
-        let parsed = match url::Url::parse(&address) {
+impl Discord {
+    pub async fn create_webhook(&self, webhook: &str) -> Result<Webhook, Monzo2DiscordError> {
+        // Should be a valid URL
+        let mut webhook = match url::Url::parse(webhook) {
             Ok(p) => p,
             Err(e) => return Err(Monzo2DiscordError::InvalidWebhook(e.into())),
         };
-        match parsed.host_str() {
-            Some("discord.com") if parsed.path().starts_with("/api/webhooks") => {
-                // URL looks OK. Check with discord.
-                let response = client.get(&address).send().await?;
-                match response.status() {
-                    reqwest::StatusCode::OK => Ok(Self { address }),
-                    _ => Err(InvalidWebhookError::DiscordError(response).into()),
-                }
-            }
-            _ => Err(InvalidWebhookError::DisallowedUrl(address).into()),
-        }
-    }
 
-    pub async fn post(
-        &self,
-        client: &reqwest::Client,
-        message: String,
-    ) -> Result<(), Monzo2DiscordError> {
-        let response = client.post(&self.address).body(message).send().await?;
-        match response.status() {
-            reqwest::StatusCode::OK => Ok(()),
-            _ => Err(Monzo2DiscordError::PostFailed(response)),
-        }
+        webhook.set_fragment(None);
+        webhook.set_query(None);
+
+        self.client
+            .get(webhook.clone())
+            .send()
+            .await?
+            .json::<serenity::model::webhook::Webhook>()
+            .await?;
+
+        Ok(Webhook {
+            url: webhook,
+            client: self.client.clone(),
+        })
     }
 }
 
@@ -220,30 +189,47 @@ mod parsers {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use httpmock::{Method, MockServer};
     #[tokio::test]
     async fn valid_webhooks() {
-        let client = reqwest::Client::new();
-        assert!(matches!(
-            DiscordWebhook::new(&client, "hello".into()).await,
-            Err(Monzo2DiscordError::InvalidWebhook(
-                InvalidWebhookError::ParseError(_)
-            ),),
-        ));
-        assert!(matches!(
-            DiscordWebhook::new(&client, "https://google.com".into()).await,
-            Err(Monzo2DiscordError::InvalidWebhook(
-                InvalidWebhookError::DisallowedUrl(_)
-            ),),
-        ));
-        assert!(matches!(
-            DiscordWebhook::new(
-                &client,
-                "https://discord.com/api/webhooks/12345/abcde".into()
-            )
-            .await,
-            Err(Monzo2DiscordError::InvalidWebhook(
-                InvalidWebhookError::DiscordError(_)
-            ),),
-        ));
+        let discord_server = MockServer::start();
+        let webhook_endpoint = discord_server.mock(|when, then| {
+            when.method(Method::GET).path("/api/webhooks/123/456");
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .body(
+                    r#"{
+                    "application_id": null,
+                    "avatar": null,
+                    "channel_id": "100",
+                    "guild_id": null,
+                    "id": "123",
+                    "name": null,
+                    "token": "456",
+                    "type": 1
+                    }"#,
+                );
+        });
+
+        let discord_client = Discord {
+            url: url::Url::parse(&discord_server.url("")).unwrap(),
+            ..Default::default()
+        };
+        discord_client
+            .create_webhook(&discord_server.url("/api/webhooks/123/456"))
+            .await
+            .unwrap();
+        webhook_endpoint.assert();
+
+        let bad_webhook = discord_server.mock(|when, then| {
+            when.method(Method::GET).path("/api/webhooks/abc/def");
+            then.status(400);
+        });
+
+        discord_client
+            .create_webhook(&discord_server.url("/api/webhooks/abc/def"))
+            .await
+            .unwrap_err();
+        bad_webhook.assert();
     }
 }

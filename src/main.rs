@@ -1,6 +1,6 @@
 #[cfg(debug_assertions)]
 use dotenv;
-use monzo2discord::{ClientOpt, DiscordWebhook, Monzo2DiscordError, OauthHttpClient};
+use monzo2discord::{ClientOpt, Monzo2DiscordError, OauthHttpClient};
 use oauth2::{basic::BasicClient as OauthClient, AuthorizationCode, CsrfToken};
 use reqwest::Client as HTTPClient;
 use rocket::{get, http::Status, launch, response::Redirect, routes, Response, Rocket, State};
